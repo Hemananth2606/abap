@@ -1,0 +1,402 @@
+*&---------------------------------------------------------------------*
+*& Report  ZALVA_H
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT ZALVA_H.
+
+
+
+TYPES : BEGIN OF ts_lfa1,
+        lifnr TYPE lfa1-LIFNR,
+        name1 TYPE lfa1-NAME1,
+        END OF ts_lfa1.
+TYPES : begin of ts_lfb1,
+        lifnr TYPE lfb1-LIFNR,
+        bukrs TYPE lfb1-BUKRS,
+        erdat TYPE lfb1-ERDAT,
+        END OF ts_lfb1.
+TYPES : BEGIN OF ts_bkpf,
+        bukrs TYPE bkpf-BUKRS,
+        belnr TYPE bkpf-BELNR,
+        gjahr TYPE bkpf-GJAHR,
+        bktxt TYPE bkpf-BKTXT,
+        bldat TYPE bkpf-BLDAT,
+        budat TYPE bkpf-BUDAT,
+        END OF ts_bkpf.
+TYPES : BEGIN OF ts_bseg,
+        belnr TYPE bseg-BELNR,
+        gjahr TYPE bseg-GJAHR,
+        bukrs TYPE bseg-BUKRS,
+        lifnr TYPE bseg-LIFNR,
+        wrbtr TYPE bseg-WRBTR,
+        END OF ts_bseg.
+TYPES : BEGIN OF  ts_bsik,
+        bukrs type bsik-BUKRS,
+        lifnr TYPE bsik-LIFNR,
+        augdt TYPE bsik-AUGDT,
+        augbl TYPE bsik-AUGBL,
+        xblnr TYPE bsik-XBLNR,
+        END OF ts_bsik.
+
+TYPES : BEGIN OF ts_final,
+        lifnr TYPE lfa1-LIFNR,
+        name1 TYPE lfa1-NAME1,
+        erdat TYPE lfb1-ERDAT,
+        bukrs TYPE lfb1-BUKRS,
+        gjahr TYPE bkpf-GJAHR,
+        bktxt TYPE bkpf-BKTXT,
+        bldat TYPE bkpf-BLDAT,
+        belnr TYPE bseg-BELNR,
+        budat TYPE bkpf-BUDAT,
+        wrbtr TYPE bseg-WRBTR,
+        augdt TYPE bsik-AUGDT,
+        augbl TYPE bsik-AUGBL,
+        xblnr TYPE bsik-XBLNR,
+        END OF ts_final.
+
+        DATA : lt_lfa1 TYPE TABLE OF ts_lfa1,
+       ls_lfa1 TYPE ts_lfa1,
+       lt_lfb1 TYPE TABLE OF ts_lfb1,
+       ls_lfb1 TYPE ts_lfb1,
+       lt_bkpf TYPE TABLE OF ts_bkpf,
+       ls_bkpf TYPE ts_bkpf,
+       lt_bseg TYPE TABLE OF ts_bseg,
+       ls_bseg TYPE ts_bseg,
+       lt_bsik TYPE TABLE OF ts_bsik,
+       ls_bsik TYPE ts_bsik,
+       lt_final TYPE TABLE OF ts_final,
+       ls_final TYPE ts_final,
+       lt_fcat TYPE SLIS_T_FIELDCAT_ALV,
+       ls_fcat TYPE SLIS_FIELDCAT_ALV,
+       ls_layout TYPE SLIS_LAYOUT_ALV,
+       lt_listh TYPE slis_t_listheader, "slis_t_listheader -  to display header of the report
+       ls_listh TYPE slis_listheader,
+       lt_subt TYPE slis_t_sortinfo_alv, "slis_t_sortinfo_alv - to display subtotal.
+       ls_subt TYPE slis_sortinfo_alv.
+
+
+  SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+    PARAMETERS : p_lifnr TYPE lfb1-LIFNR.
+  SELECTION-SCREEN END OF block b1.
+
+  START-OF-SELECTION.
+if P_lifnr is INITIAL.
+    SELECT lifnr
+         bukrs
+         erdat
+  from lfb1
+  INTO table lt_lfb1.
+else.
+  SELECT lifnr
+         bukrs
+         erdat
+  from lfb1
+  INTO table lt_lfb1
+  WHERE lifnr = p_lifnr.
+  SORT lt_lfb1 by lifnr bukrs .
+
+endif.
+
+  if lt_lfb1 is not INITIAL.
+    SELECT lifnr
+           name1
+    from lfa1
+    INTO TABLE lt_lfa1
+    FOR ALL ENTRIES IN lt_lfb1
+    WHERE lifnr = lt_lfb1-lifnr.
+    SORT lt_lfa1 by lifnr.
+
+   SELECT belnr
+        gjahr
+        bukrs
+        lifnr
+        wrbtr
+   FROM bseg
+   INTO TABLE lt_bseg
+   FOR ALL ENTRIES IN lt_lfb1
+   where lifnr = lt_lfb1-lifnr AND bukrs = lt_lfb1-BUKRS.
+   SORT lt_bseg by belnr gjahr bukrs.
+endif.
+
+if lt_bseg is NOT INITIAL.
+   SELECT  bukrs
+        lifnr
+        augdt
+        augbl
+        xblnr
+   from bsik
+   INTO TABLE lt_bsik
+   for ALL ENTRIES IN lt_bseg
+   WHERE bukrs = lt_bseg-bukrs and lifnr = lt_bseg-lifnr.
+   SORT lt_bsik by bukrs lifnr augdt .
+
+    SELECT bukrs
+        belnr
+        gjahr
+        bktxt
+        bldat
+        budat
+      from bkpf
+      INTO TABLE lt_bkpf
+      FOR ALL ENTRIES IN lt_bseg
+      where belnr = lt_bseg-BELNR and gjahr = lt_bseg-GJAHR and bukrs = lt_bseg-BUKRS.
+      SORT lt_bkpf by bukrs belnr gjahr.
+      endif.
+
+LOOP at lt_bseg INTO ls_bseg.
+  ls_final-belnr = ls_bseg-BELNR.
+  ls_final-gjahr = ls_bseg-GJAHR.
+  ls_final-bukrs = ls_bseg-BUKRS.
+  ls_final-lifnr = ls_bseg-LIFNR.
+  ls_final-WRBTR = ls_bseg-WRBTR.
+  READ TABLE lt_lfb1 INTO ls_lfb1 WITH KEY lifnr = ls_bseg-lifnr bukrs = ls_bseg-BUKRS BINARY SEARCH.
+  if SY-SUBRC = 0.
+  ls_final-erdat = ls_lfb1-ERDAT.
+  ENDIF.
+  READ TABLE lt_bsik INTO ls_bsik WITH KEY LIFNR = ls_bseg-LIFNR bukrs = ls_bseg-bukrs BINARY SEARCH.
+  if SY-SUBRC = 0.
+  ls_final-AUGBL = ls_bsik-AUGBL.
+  ls_final-xblnr = ls_bsik-XBLNR.
+  ls_final-AUGDT = ls_bsik-AUGDT.
+  ENDIF.
+  READ TABLE lt_bkpf INTO ls_bkpf WITH KEY belnr = ls_bseg-BELNR bukrs = ls_bseg-BUKRS BINARY SEARCH.
+  if sy-SUBRC = 0.
+  ls_final-BKTXT = ls_bkpf-BKTXT.
+  ls_final-BUDAT = ls_bkpf-BUDAT.
+  ENDIF.
+  APPEND ls_final to lt_final.
+  CLEAR ls_final.
+  ENDLOOP.
+
+
+  ls_layout-colwidth_optimize = 'X'.
+  ls_layout-zebra = 'X'.
+  ls_subt-fieldname = 'BELNR'.
+  ls_subt-UP = 'X'.
+  ls_subt-subtot = 'X'.
+  APPEND ls_subt TO lt_subt[].
+  CLEAR ls_subt.
+
+  ls_fcat-COL_POS = '1'.
+  ls_fcat-fieldname = 'BELNR'.
+  ls_fcat-seltext_m = 'ACCOUNTING DOCUMENT NUMBER'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  ls_fcat-KEY = 'X'.
+  APPEND ls_fcat TO lt_fcat.
+  clear ls_fcat.
+
+  ls_fcat-COL_POS = '2'.
+  ls_fcat-fieldname = 'BUKRS'.
+  ls_fcat-seltext_m = 'COMPANY CODE'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  ls_fcat-emphasize = 'C10'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '3'.
+  ls_fcat-fieldname = 'GJAHR'.
+  ls_fcat-seltext_m = 'FISCAL YEAR'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '4'.
+  ls_fcat-fieldname = 'LIFNR'.
+  ls_fcat-seltext_m = 'VENDOR NUMBER'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '5'.
+  ls_fcat-fieldname = 'BUDAT'.
+  ls_fcat-seltext_m = 'POSTING DATE'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '6'.
+  ls_fcat-fieldname = 'WRBTR'.
+  ls_fcat-seltext_m = 'AMOUNT IN DOCUMENT'.
+  ls_fcat-tabname = 'LT_FINAL'.
+ls_fcat-DO_SUM = abap_true.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '7'.
+  ls_fcat-fieldname = 'AUGBL'.
+  ls_fcat-seltext_m = 'DOC NUMBER OF CLEARING'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '8'.
+  ls_fcat-fieldname = 'XBLNR'.
+  ls_fcat-seltext_m = 'REFRENCE DOC NUMBER'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '9'.
+  ls_fcat-fieldname = 'BKTXT'.
+  ls_fcat-seltext_m = 'DOCUMENT HEADER TEXT'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-COL_POS = '10'.
+  ls_fcat-fieldname = 'AUGDT'.
+  ls_fcat-seltext_m = 'CLEARING DATE'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+
+   I_CALLBACK_PROGRAM                = sy-repid
+   I_CALLBACK_PF_STATUS_SET          = 'BUTTON'
+   I_CALLBACK_USER_COMMAND           = 'USER_COMMAND'
+   I_CALLBACK_TOP_OF_PAGE            = 'TOP_OF_PAGE'
+   IS_LAYOUT                         = ls_layout
+   IT_FIELDCAT                       = lt_fcat
+   IT_SORT     = LT_SUBT
+
+  TABLES
+    T_OUTTAB                          =  lt_final.
+          .
+
+
+FORM TOP_OF_PAGE.
+DATA: lv_total TYPE I.
+DESCRIBE TABLE lt_final LINES lv_total.
+
+
+  ls_listh-typ = 'H'. "Heading
+  ls_listh-info = 'VENDOR PAYMENT STATUS REPORT'.
+  APPEND ls_listh TO lt_listh[].
+  CLEAR ls_listh.
+*
+      ls_listh-typ = 'S'. "Status
+      ls_listh-KEY = 'Date :'.
+      CONCATENATE sy-datum+6(2)
+      sy-datum+4(2)
+      sy-datum+0(4)
+      INTO ls_listh-info SEPARATED BY '/'.
+
+      APPEND ls_listh TO lt_listh[].
+      CLEAR ls_listh.
+
+      ls_listh-typ = 'S'. "Status
+      ls_listh-KEY = 'Number of Records :'.
+      ls_listh-info = lv_total.
+      APPEND ls_listh to lt_listh.
+      CLEAR ls_listh.
+
+      ls_listh-typ = 'S'.
+      ls_listh-info = sy-cprog.
+      ls_listh-key = 'Program Name: '.
+      APPEND ls_listh TO lt_listh.
+      CLEAR ls_listh.
+
+DESCRIBE TABLE lt_final LINES DATA(COUNT).
+      ls_listh-INFO = COUNT.
+      APPEND ls_listh TO lt_listh[].
+      CLEAR ls_listh.
+  CALL FUNCTION 'REUSE_ALV_COMMENTARY_WRITE'
+    EXPORTING
+      IT_LIST_COMMENTARY       =  lt_listh.
+*     I_LOGO                   =
+*     I_END_OF_LIST_GRID       =
+*     I_ALV_FORM               =
+refresh lt_listh.
+  endform.
+
+FORM BUTTON using lv_status TYPE SLIS_T_EXTAB.
+  set PF-STATUS 'ZALVB'.
+  ENDFORM.
+  FORM USER_COMMAND USING UCOMM LIKE sy-ucomm
+      lv_button TYPE slis_selfield.
+
+  CASE UCOMM.
+    WHEN 'FML'.
+      CALL TRANSFORMATION ID SOURCE LT_FINAL = LT_FINAL
+      RESULT XML DATA(lv_xml).
+      cl_demo_output=>display_xml( xml = lv_xml ).
+
+    WHEN 'JSN'.
+      DATA(lv_json) = cl_sxml_string_writer=>create( TYPE  = if_sxml=>co_xt_json ).
+      CALL TRANSFORMATION ID SOURCE LT_FINAL = LT_FINAL
+        RESULT XML lv_json.
+      DATA(json) = lv_json->get_output( ).
+      cl_demo_output=>display_json( json = json ).
+
+    WHEN 'HTM'.
+      DATA(lv_html) = cl_demo_output=>get( DATA = LT_FINAL ).
+      cl_demo_output=>DISPLAY_HTML( HTML = lv_html ).
+
+       WHEN 'HTL'.
+      DATA : html TYPE TABLE OF w3html WITH HEADER LINE,
+            fields TYPE TABLE OF w3fields WITH HEADER LINE.
+
+      CALL FUNCTION 'WWW_ITAB_TO_HTML'
+        EXPORTING
+*         TABLE_ATTRIBUTES       = 'BORDER=1'
+*         TABLE_HEADER           =
+          all_fields = 'X'
+        TABLES
+          html       = html
+          fields     = fields
+*         ROW_HEADER =
+          itable     = lt_final.
+
+      CALL FUNCTION 'GUI_DOWNLOAD'
+        EXPORTING
+          filename                = 'C:\Temp\ITAB_TO_HTML.html'
+        TABLES
+          data_tab                = html
+        EXCEPTIONS
+          file_write_error        = 1
+          no_batch                = 2
+          gui_refuse_filetransfer = 3
+          invalid_type            = 4
+          no_authority            = 5
+          unknown_error           = 6
+          header_not_allowed      = 7
+          separator_not_allowed   = 8
+          filesize_not_allowed    = 9
+          header_too_long         = 10
+          dp_error_create         = 11
+          dp_error_send           = 12
+          dp_error_write          = 13
+          unknown_dp_error        = 14
+          access_denied           = 15
+          dp_out_of_memory        = 16
+          disk_full               = 17
+          dp_timeout              = 18
+          file_not_found          = 19
+          dataprovider_exception  = 20
+          control_flush_error     = 21
+          OTHERS                  = 22.
+
+      cl_gui_frontend_services=>execute(
+        EXPORTING
+          document               = 'C:\Temp\ITAB_TO_HTML.html'     " Path+Name to Document
+          operation              = 'OPEN'    " Reserved: Verb für ShellExecute
+        EXCEPTIONS
+          cntl_error             = 1
+          error_no_gui           = 2
+          bad_parameter          = 3
+          file_not_found         = 4
+          path_not_found         = 5
+          file_extension_unknown = 6
+          error_execute_failed   = 7
+          synchronous_failed     = 8
+          not_supported_by_gui   = 9
+          OTHERS                 = 10
+      ).
+  ENDCASE.
+ENDFORM.
