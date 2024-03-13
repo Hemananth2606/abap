@@ -1,0 +1,244 @@
+*&---------------------------------------------------------------------*
+*& Report  ZALVSF
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT zalvsf.
+
+TYPES : BEGIN OF ts_vbak,
+        vbeln TYPE  vbeln_va,
+        erdat TYPE  erdat,
+        erzet TYPE  erzet,
+        END OF ts_vbak.
+
+TYPES: BEGIN OF ts_vbap,
+      vbeln TYPE  vbeln_va,
+      posnr TYPE  posnr_va,
+      matnr TYPE  matnr,
+      END OF ts_vbap.
+
+DATA : lt_vbak TYPE TABLE OF ts_vbak,
+       ls_vbak TYPE ts_vbak,
+       lt_vbap TYPE TABLE OF ts_vbap,
+       ls_vbap TYPE ts_vbap,
+       lt_final TYPE TABLE OF zfsalvsf,
+       ls_final TYPE zfsalvsf,
+       lo_events TYPE REF TO cl_salv_events_table,
+       ls_control_parameters TYPE ssfctrlop,
+       ls_output_options TYPE ssfcompop,
+       ls_job_output_info TYPE ssfcrescl,
+       lt_pdf_lines TYPE TABLE OF tline.
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+PARAMETERS : p_vbeln TYPE ts_vbak-vbeln.
+SELECTION-SCREEN END OF BLOCK b1.
+
+CLASS cls DEFINITION.
+  PUBLIC SECTION.
+
+    METHODS : display,
+              gui_click FOR EVENT added_function OF cl_salv_events_table  " Event handler for ALV button click
+              IMPORTING e_salv_function.
+
+ENDCLASS.
+
+CLASS cls IMPLEMENTATION.
+
+  METHOD display.
+
+    IF p_vbeln IS NOT INITIAL.
+
+      SELECT vbeln
+             erdat
+             erzet
+        FROM vbak
+        INTO TABLE lt_vbak
+        WHERE vbeln = p_vbeln.
+
+    ELSE .
+      MESSAGE text-002
+      TYPE 'E'.
+
+    ENDIF.
+
+    IF sy-subrc IS INITIAL.
+      SELECT vbeln
+             posnr
+             matnr
+        FROM vbap
+        INTO TABLE lt_vbap
+        FOR ALL ENTRIES IN lt_vbak
+        WHERE vbeln = lt_vbak-vbeln.
+    ENDIF.
+
+    LOOP AT lt_vbap INTO ls_vbap.
+      ls_final-vbeln = ls_vbap-vbeln.
+      ls_final-posnr = ls_vbap-posnr.
+      ls_final-matnr = ls_vbap-matnr.
+
+      READ TABLE lt_vbak INTO ls_vbak WITH KEY vbeln = ls_vbap-vbeln BINARY SEARCH.
+
+      ls_final-erdat = ls_vbak-erdat.
+      ls_final-erzet = ls_vbak-erzet.
+
+      APPEND ls_final TO lt_final.
+
+      CLEAR : ls_vbak, ls_vbap, ls_final.
+    ENDLOOP.
+
+    TRY .
+        cl_salv_table=>factory(
+          IMPORTING
+            r_salv_table = DATA(lo_alv)
+          CHANGING
+            t_table      = lt_final
+        ).
+      CATCH cx_salv_msg.
+
+    ENDTRY.
+    SET PF-STATUS 'ZBUT'.
+    lo_alv->set_screen_status(
+      EXPORTING
+        report        =   sy-repid  " ABAP Program: Current Main Program
+        pfstatus      =   'ZBUT'  " Screens, Current GUI Status
+        set_functions =   lo_alv->c_functions_all  " ALV: Data Element for Constants
+    ).
+    lo_events = lo_alv->get_event( ).
+    DATA : lo_event_handler TYPE REF TO cls.
+    CREATE OBJECT lo_event_handler.
+    SET HANDLER lo_event_handler->gui_click FOR lo_events.
+    lo_alv->display( ).
+  ENDMETHOD.
+  METHOD gui_click.
+    IF e_salv_function = 'PDF'.
+
+      DATA : sfname TYPE rs38l_fnam.
+      CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+        EXPORTING
+          formname           = 'ZSF_ALV_SF'
+        IMPORTING
+          fm_name            = sfname
+        EXCEPTIONS
+          no_form            = 1
+          no_function_module = 2
+          OTHERS             = 3.
+
+        ls_control_parameters-no_dialog = 'X'.
+        ls_control_parameters-preview = 'X'.
+        ls_output_options-tddest = 'LP01'.
+        CALL FUNCTION sfname
+          EXPORTING
+            control_parameters = ls_control_parameters
+            output_options     = ls_output_options
+            user_settings      = ' '
+          IMPORTING
+            job_output_info    = ls_job_output_info
+          TABLES
+            lt_final           = lt_final.
+
+    ELSEIF e_salv_function = 'DOW'.
+
+      CALL FUNCTION 'SSF_FUNCTION_MODULE_NAME'
+        EXPORTING
+          formname           = 'ZSF_ALV_SF'
+        IMPORTING
+          fm_name            = sfname
+        EXCEPTIONS
+          no_form            = 1
+          no_function_module = 2
+          OTHERS             = 3.
+      IF sy-subrc = 0.
+        ls_control_parameters-no_dialog = 'X'.
+        ls_control_parameters-preview = 'X'.
+        ls_control_parameters-getotf = 'X'.
+        ls_output_options-tddest = 'LP01'.
+        CALL FUNCTION sfname
+          EXPORTING
+            control_parameters = ls_control_parameters
+            output_options     = ls_output_options
+            user_settings      = ' '
+          IMPORTING
+            job_output_info    = ls_job_output_info
+          TABLES
+            lt_final           = lt_final
+          EXCEPTIONS
+            formatting_error   = 1
+            internal_error     = 2
+            send_error         = 3
+            user_canceled      = 4
+            OTHERS             = 5.
+        ENDIF.
+        CALL FUNCTION 'CONVERT_OTF'
+         EXPORTING
+           FORMAT                      = 'PDF'
+          TABLES
+            otf                         = ls_job_output_info-otfdata
+            lines                       = lt_pdf_lines
+         EXCEPTIONS
+           ERR_MAX_LINEWIDTH           = 1
+           ERR_FORMAT                  = 2
+           ERR_CONV_NOT_POSSIBLE       = 3
+           ERR_BAD_OTF                 = 4
+           OTHERS                      = 5
+                  .
+          data : lv_filename TYPE string,
+                 lv_path TYPE string,
+                 lv_fullpath TYPE string.
+          CALL METHOD cl_gui_frontend_services=>file_save_dialog
+            EXPORTING
+              window_title              =   'HI'  " Window Title
+              default_extension         =  'PDF'   " Default Extension
+              prompt_on_overwrite       = 'X'
+            CHANGING
+              filename                  = lv_filename    " File Name to Save
+              path                      = lv_path    " Path to File
+              fullpath                  = lv_fullpath.    " Path + File Name
+
+           call METHOD cl_gui_frontend_services=>gui_download
+             EXPORTING
+               filename                  = lv_fullpath    " Name of file
+               filetype                  = 'BIN'    " File type (ASCII, binary ...)
+               show_transfer_status      = 'X'    " Enables suppression of transfer status message
+             CHANGING
+               data_tab                  =  lt_pdf_lines   " Transfer table
+             EXCEPTIONS
+               file_write_error          = 1
+               no_batch                  = 2
+               gui_refuse_filetransfer   = 3
+               invalid_type              = 4
+               no_authority              = 5
+               unknown_error             = 6
+               header_not_allowed        = 7
+               separator_not_allowed     = 8
+               filesize_not_allowed      = 9
+               header_too_long           = 10
+               dp_error_create           = 11
+               dp_error_send             = 12
+               dp_error_write            = 13
+               unknown_dp_error          = 14
+               access_denied             = 15
+               dp_out_of_memory          = 16
+               disk_full                 = 17
+               dp_timeout                = 18
+               file_not_found            = 19
+               dataprovider_exception    = 20
+               control_flush_error       = 21
+               not_supported_by_gui      = 22
+               error_no_gui              = 23
+               others                    = 24.
+
+
+
+
+    ENDIF.
+  ENDMETHOD.
+ENDCLASS.
+
+START-OF-SELECTION.
+  DATA : obj TYPE REF TO cls.
+  CREATE OBJECT obj.
+
+  obj->display( ).
