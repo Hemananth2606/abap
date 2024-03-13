@@ -1,0 +1,520 @@
+*&---------------------------------------------------------------------*
+*& Report  ZRD_H
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT ZRD_H.
+
+
+TYPES: BEGIN OF ts_ekko,
+         ebeln TYPE ebeln,
+         bukrs TYPE bukrs,
+         lifnr TYPE lifnr,
+       END OF ts_ekko.
+
+DATA :lt_ekko TYPE TABLE OF ts_ekko,
+      ls_ekko TYPE ts_ekko.
+
+TYPES : BEGIN OF ts_ekpo,
+          ebeln TYPE ebeln,
+          ebelp TYPE ebelp,
+          matnr TYPE matnr,
+        END OF ts_ekpo.
+
+DATA : lt_ekpo TYPE TABLE OF ts_ekpo,
+       ls_ekpo TYPE ts_ekpo.
+
+TYPES : BEGIN OF ts_ekes,
+          ebeln TYPE ebeln,
+          ebtyp TYPE ebtyp,
+        END OF ts_ekes.
+
+DATA : lt_ekes TYPE TABLE OF ts_ekes,
+       ls_ekes TYPE ts_ekes.
+
+TYPES : BEGIN OF ts_final,
+          ebeln TYPE ebeln,
+          bukrs TYPE bukrs,
+          lifnr TYPE lifnr,
+          ebelp TYPE ebelp,
+          matnr TYPE matnr,
+          ebtyp TYPE ebtyp,
+        END OF ts_final.
+
+DATA: lt_final TYPE TABLE OF ts_final,
+      ls_final TYPE ts_final.
+
+DATA : lt_fcat  TYPE slis_t_fieldcat_alv,
+       ls_fcat  TYPE slis_fieldcat_alv,
+       ls_lay   TYPE slis_layout_alv,
+       lt_fcat1 TYPE slis_t_fieldcat_alv,
+       ls_fcat1 TYPE slis_fieldcat_alv.
+
+DATA : choice TYPE c.
+
+DATA: v_prog TYPE sy-repid,
+      v_date TYPE sy-datum,
+      v_time TYPE sy-uzeit.
+
+
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+
+SELECT-OPTIONS: purchase  FOR ls_ekko-ebeln.
+PARAMETERS:  rb_clrpt RADIOBUTTON GROUP rb,
+             rb_alv   RADIOBUTTON GROUP rb,
+             rb_ialv  RADIOBUTTON GROUP rb.
+SELECTION-SCREEN END OF BLOCK b1 .
+
+*At SELECTION-SCREEN OUTPUT.
+*
+*LOOP AT SCREEN.
+* if rb_clrpt = 'X'.
+
+
+INITIALIZATION.
+
+  v_prog =  sy-repid.
+  v_date =  sy-datum.
+  v_time = sy-uzeit.
+
+
+
+START-OF-SELECTION.
+
+  IF rb_clrpt = 'X'.
+
+    choice = '1'.
+  ELSEIF rb_alv = 'X'.
+    choice ='2'.
+  ELSEIF rb_ialv = 'X'.
+    choice ='3'.
+  ENDIF.
+
+  CASE choice.
+
+    WHEN 1.
+      PERFORM classical_report.
+    WHEN 2.
+      PERFORM alv_report.
+    WHEN 3.
+      PERFORM interactive_alv_report.
+  ENDCASE.
+
+
+FORM classical_report.
+
+  SELECT  ebeln bukrs lifnr
+    FROM ekko
+    INTO TABLE lt_ekko
+    WHERE ebeln IN purchase.
+
+
+  IF lt_ekko IS NOT INITIAL.
+
+    SELECT ebeln ebelp matnr
+    FROM ekpo
+    INTO TABLE lt_ekpo
+FOR ALL ENTRIES IN lt_ekko
+    WHERE ebeln = lt_ekko-ebeln.
+
+
+    SELECT ebeln ebtyp
+    FROM ekes
+   INTO TABLE lt_ekes
+   FOR ALL ENTRIES IN lt_ekko
+   WHERE ebeln = lt_ekko-ebeln.
+
+  ENDIF.
+
+  LOOP AT lt_ekko INTO ls_ekko.
+    LOOP AT lt_ekpo INTO ls_ekpo WHERE ebeln = ls_ekko-ebeln.
+
+      ls_final-ebeln = ls_ekko-ebeln.
+      ls_final-bukrs = ls_ekko-bukrs.
+      ls_final-lifnr = ls_ekko-lifnr.
+      ls_final-ebelp = ls_ekpo-ebelp.
+      ls_final-matnr = ls_ekpo-matnr.
+
+      READ TABLE lt_ekes INTO ls_ekes WITH KEY ebeln = ls_ekko-ebeln.
+
+      ls_final-ebtyp = ls_ekes-ebtyp.
+
+
+      APPEND ls_final TO lt_final.
+      CLEAR: ls_final.
+
+    ENDLOOP.
+  ENDLOOP.
+
+  WRITE : sy-uline(135).
+  WRITE : / sy-vline,text-000,
+           25 sy-vline, text-002,
+            40  sy-vline, text-003,
+            60 sy-vline, text-004,
+            90 sy-vline, text-005,
+            111 sy-vline, text-006,
+            135 sy-vline.
+
+  WRITE : / sy-uline(135).
+  IF lt_final IS NOT INITIAL.
+
+    LOOP AT lt_final INTO ls_final.
+
+
+      WRITE: / sy-vline ,  ls_final-ebeln,
+              25 sy-vline,  ls_final-bukrs,
+              40  sy-vline, ls_final-lifnr,
+              60  sy-vline, ls_final-ebelp,
+              90 sy-vline, ls_final-matnr,
+              111 sy-vline, ls_final-ebtyp,
+              135 sy-vline.
+
+      WRITE : / sy-uline(135).
+
+    ENDLOOP.
+
+
+  ENDIF.
+
+ENDFORM.
+
+FORM alv_report.
+
+  SELECT  ebeln bukrs lifnr
+     FROM ekko
+     INTO TABLE lt_ekko
+     WHERE ebeln IN purchase.
+
+
+  IF lt_ekko IS NOT INITIAL.
+
+    SELECT ebeln ebelp matnr
+    FROM ekpo
+    INTO TABLE lt_ekpo
+FOR ALL ENTRIES IN lt_ekko
+    WHERE ebeln = lt_ekko-ebeln.
+
+
+    SELECT ebeln ebtyp
+    FROM ekes
+   INTO TABLE lt_ekes
+   FOR ALL ENTRIES IN lt_ekko
+   WHERE ebeln = lt_ekko-ebeln.
+
+  ENDIF.
+
+  LOOP AT lt_ekko INTO ls_ekko.
+    LOOP AT lt_ekpo INTO ls_ekpo WHERE ebeln = ls_ekko-ebeln.
+
+      ls_final-ebeln = ls_ekko-ebeln.
+      ls_final-bukrs = ls_ekko-bukrs.
+      ls_final-lifnr = ls_ekko-lifnr.
+      ls_final-ebelp = ls_ekpo-ebelp.
+      ls_final-matnr = ls_ekpo-matnr.
+
+      READ TABLE lt_ekes INTO ls_ekes WITH KEY ebeln = ls_ekko-ebeln.
+
+      ls_final-ebtyp = ls_ekes-ebtyp.
+
+
+      APPEND ls_final TO lt_final.
+      CLEAR: ls_final.
+
+    ENDLOOP.
+  ENDLOOP.
+
+
+  ls_fcat-col_pos = '1'.
+  ls_fcat-fieldname = 'EBELN'.
+*  ls_fcat-hotspot = 'X'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  ls_fcat-seltext_m = 'Purchasing Document Number'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-col_pos = '2'.
+  ls_fcat-fieldname = 'BUKRS'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  ls_fcat-seltext_l = 'Company Code'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-col_pos = '3'.
+  ls_fcat-fieldname = 'LIFNR'.
+  ls_fcat-tabname ='LT_FINAL'.
+  ls_fcat-seltext_m = 'Vendor account Number'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-col_pos = '4'.
+  ls_fcat-fieldname = 'EBELP'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  ls_fcat-seltext_l = 'Item no of purchase doc'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-col_pos = '5'.
+  ls_fcat-fieldname = 'MATNR'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  ls_fcat-seltext_m = 'Material Number'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-col_pos = '6'.
+  ls_fcat-fieldname = 'EBTYP'.
+  ls_fcat-tabname = 'LT_FINAL'.
+  ls_fcat-seltext_m = 'Confirmation Category'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_lay-colwidth_optimize = 'X'.
+  ls_lay-zebra = 'X'.
+
+*PERFORM rb_alv.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK  = ' '
+*     I_BYPASSING_BUFFER = ' '
+*     I_BUFFER_ACTIVE    = ' '
+      i_callback_program = sy-repid
+*     I_CALLBACK_PF_STATUS_SET          = ' '
+*     I_CALLBACK_USER_COMMAND           = ' '
+*     I_CALLBACK_TOP_OF_PAGE            = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME   =
+*     I_BACKGROUND_ID    = ' '
+*     I_GRID_TITLE       =
+*     I_GRID_SETTINGS    =
+      is_layout          = ls_lay
+      it_fieldcat        = lt_fcat
+*     IT_EXCLUDING       =
+*     IT_SPECIAL_GROUPS  =
+*     IT_SORT            =
+*     IT_FILTER          =
+*     IS_SEL_HIDE        =
+*     I_DEFAULT          = 'X'
+*     I_SAVE             = ' '
+*     IS_VARIANT         =
+*     IT_EVENTS          =
+*     IT_EVENT_EXIT      =
+*     IS_PRINT           =
+*     IS_REPREP_ID       =
+*     I_SCREEN_START_COLUMN             = 0
+*     I_SCREEN_START_LINE               = 0
+*     I_SCREEN_END_COLUMN               = 0
+*     I_SCREEN_END_LINE  = 0
+*     I_HTML_HEIGHT_TOP  = 0
+*     I_HTML_HEIGHT_END  = 0
+*     IT_ALV_GRAPHICS    =
+*     IT_HYPERLINK       =
+*     IT_ADD_FIELDCAT    =
+*     IT_EXCEPT_QINFO    =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER           =
+*     ES_EXIT_CAUSED_BY_USER            =
+    TABLES
+      t_outtab           = lt_final
+    EXCEPTIONS
+      program_error      = 1
+      OTHERS             = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+ENDFORM.
+
+
+FORM interactive_alv_report.
+  SELECT  ebeln bukrs lifnr
+      FROM ekko
+      INTO TABLE lt_ekko
+      WHERE ebeln IN purchase.
+
+
+  ls_fcat-col_pos = '1'.
+  ls_fcat-fieldname = 'EBELN'.
+*  ls_fcat-hotspot = 'X'.
+  ls_fcat-tabname = 'LT_ekko'.
+  ls_fcat-seltext_m = 'Purchasing Document Number'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-col_pos = '2'.
+  ls_fcat-fieldname = 'BUKRS'.
+  ls_fcat-tabname = 'LT_ekko'.
+  ls_fcat-seltext_l = 'Company Code'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+  ls_fcat-col_pos = '3'.
+  ls_fcat-fieldname = 'LIFNR'.
+  ls_fcat-tabname ='LT_ekko'.
+  ls_fcat-seltext_m = 'Vendor account Number'.
+  APPEND ls_fcat TO lt_fcat.
+  CLEAR ls_fcat.
+
+
+*  ls_fcat-col_pos = '6'.
+*  ls_fcat-fieldname = 'EBTYP'.
+*  ls_fcat-tabname = 'LT_FINAL'.
+*  ls_fcat-seltext_m = 'Confirmation Category'.
+*  APPEND ls_fcat TO lt_fcat.
+*  CLEAR ls_fcat.
+
+  ls_lay-colwidth_optimize = 'X'.
+  ls_lay-zebra = 'X'.
+
+*PERFORM rb_alv.
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK       = ' '
+*     I_BYPASSING_BUFFER      = ' '
+*     I_BUFFER_ACTIVE         = ' '
+      i_callback_program      = sy-repid
+*     I_CALLBACK_PF_STATUS_SET          = ' '
+      i_callback_user_command = 'USER_COMM'
+*     I_CALLBACK_TOP_OF_PAGE  = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME        =
+*     I_BACKGROUND_ID         = ' '
+*     I_GRID_TITLE            =
+*     I_GRID_SETTINGS         =
+      is_layout               = ls_lay
+      it_fieldcat             = lt_fcat
+*     IT_EXCLUDING            =
+*     IT_SPECIAL_GROUPS       =
+*     IT_SORT                 =
+*     IT_FILTER               =
+*     IS_SEL_HIDE             =
+*     I_DEFAULT               = 'X'
+*     I_SAVE                  = ' '
+*     IS_VARIANT              =
+*     IT_EVENTS               =
+*     IT_EVENT_EXIT           =
+*     IS_PRINT                =
+*     IS_REPREP_ID            =
+*     I_SCREEN_START_COLUMN   = 0
+*     I_SCREEN_START_LINE     = 0
+*     I_SCREEN_END_COLUMN     = 0
+*     I_SCREEN_END_LINE       = 0
+*     I_HTML_HEIGHT_TOP       = 0
+*     I_HTML_HEIGHT_END       = 0
+*     IT_ALV_GRAPHICS         =
+*     IT_HYPERLINK            =
+*     IT_ADD_FIELDCAT         =
+*     IT_EXCEPT_QINFO         =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER =
+*     ES_EXIT_CAUSED_BY_USER  =
+    TABLES
+      t_outtab                = lt_ekko
+    EXCEPTIONS
+      program_error           = 1
+      OTHERS                  = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+ENDFORM.
+
+FORM user_comm USING r_ucomm LIKE sy-ucomm
+                                  rs_selfield TYPE slis_selfield.
+
+
+  READ TABLE lt_ekko INTO ls_ekko INDEX rs_selfield-tabindex.
+
+
+  SELECT ebeln
+         ebelp
+         matnr
+  FROM ekpo
+  INTO TABLE lt_ekpo
+  WHERE ebeln = ls_ekko-ebeln.
+
+
+  ls_fcat1-col_pos = '1'.
+  ls_fcat1-fieldname = 'EBELN'.
+  ls_fcat1-tabname = 'LT_EKPO'.
+  ls_fcat1-seltext_l = 'Purchase Doc Number'.
+  APPEND ls_fcat1 TO lt_fcat1.
+  CLEAR ls_fcat1.
+
+  ls_fcat1-col_pos = '2'.
+  ls_fcat1-fieldname = 'EBELP'.
+  ls_fcat1-tabname = 'LT_EKPO'.
+  ls_fcat1-seltext_m = 'Item no of purchase doc'.
+  APPEND ls_fcat1 TO lt_fcat1.
+  CLEAR ls_fcat1.
+
+  ls_fcat1-col_pos = '3'.
+  ls_fcat1-fieldname = 'MATNR'.
+  ls_fcat1-tabname = 'LT_EKPO'.
+  ls_fcat1-seltext_m = 'Material Number'.
+  APPEND ls_fcat1 TO lt_fcat1.
+  CLEAR ls_fcat1.
+
+
+  CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+    EXPORTING
+*     I_INTERFACE_CHECK       = ' '
+*     I_BYPASSING_BUFFER      = ' '
+*     I_BUFFER_ACTIVE         = ' '
+      i_callback_program      = sy-repid
+*     I_CALLBACK_PF_STATUS_SET          = ' '
+      i_callback_user_command = 'U_COMM'
+*     I_CALLBACK_TOP_OF_PAGE  = ' '
+*     I_CALLBACK_HTML_TOP_OF_PAGE       = ' '
+*     I_CALLBACK_HTML_END_OF_LIST       = ' '
+*     I_STRUCTURE_NAME        =
+*     I_BACKGROUND_ID         = ' '
+*     I_GRID_TITLE            =
+*     I_GRID_SETTINGS         =
+*     IS_LAYOUT               =
+      it_fieldcat             = lt_fcat1
+*     IT_EXCLUDING            =
+*     IT_SPECIAL_GROUPS       =
+*     IT_SORT                 =
+*     IT_FILTER               =
+*     IS_SEL_HIDE             =
+*     I_DEFAULT               = 'X'
+*     I_SAVE                  = ' '
+*     IS_VARIANT              =
+*     IT_EVENTS               =
+*     IT_EVENT_EXIT           =
+*     IS_PRINT                =
+*     IS_REPREP_ID            =
+*     I_SCREEN_START_COLUMN   = 0
+*     I_SCREEN_START_LINE     = 0
+*     I_SCREEN_END_COLUMN     = 0
+*     I_SCREEN_END_LINE       = 0
+*     I_HTML_HEIGHT_TOP       = 0
+*     I_HTML_HEIGHT_END       = 0
+*     IT_ALV_GRAPHICS         =
+*     IT_HYPERLINK            =
+*     IT_ADD_FIELDCAT         =
+*     IT_EXCEPT_QINFO         =
+*     IR_SALV_FULLSCREEN_ADAPTER        =
+* IMPORTING
+*     E_EXIT_CAUSED_BY_CALLER =
+*     ES_EXIT_CAUSED_BY_USER  =
+    TABLES
+      t_outtab                = lt_ekpo
+    EXCEPTIONS
+      program_error           = 1
+      OTHERS                  = 2.
+  IF sy-subrc <> 0.
+* Implement suitable error handling here
+  ENDIF.
+
+  REFRESH : lt_fcat1.
+
+ENDFORM.
