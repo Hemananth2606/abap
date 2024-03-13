@@ -1,0 +1,71 @@
+FUNCTION zbapi_lv.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     VALUE(P_LVID) TYPE  ZBAPILVRQ-LEAVE_REQUESTID OPTIONAL
+*"  EXPORTING
+*"     VALUE(RETURN) TYPE  BAPIRET2
+*"  TABLES
+*"      LT_LRID STRUCTURE  ZBAPILVRQ OPTIONAL
+*"      LT_EID STRUCTURE  ZBAPILVDT OPTIONAL
+*"      LT_APID STRUCTURE  ZBAPILVAP OPTIONAL
+*"----------------------------------------------------------------------
+  IF p_lvid IS INITIAL.
+    return-type = 'E'.
+    return-message = 'please enter the employee id'.
+  ELSE.
+    SELECT leave_requestid
+           employee_id
+           approver_id
+           leave_type
+           start_date
+           end_date
+           status
+           comments
+      FROM zleavereq
+      INTO TABLE lt_lrid
+      WHERE leave_requestid = p_lvid.
+    IF sy-subrc IS INITIAL.
+
+      SELECT employee_id
+      employee_firstname
+      employee_lastname
+      joining_date
+      age
+      dob
+      location
+      FROM zempdet
+      INTO TABLE lt_eid
+      FOR ALL ENTRIES IN lt_lrid
+      WHERE employee_id = lt_lrid-employee_id.
+
+    ENDIF.
+
+    IF sy-subrc IS INITIAL.
+
+      SELECT approver_id
+             approver_name
+      FROM zapprove
+        INTO TABLE lt_apid
+        FOR ALL ENTRIES IN lt_lrid
+        WHERE approver_id = lt_lrid-approver_id.
+
+    ENDIF.
+
+if sy-subrc is initial.
+
+  RETURN-type = 'S'.
+  RETURN-message ='succesfully captured'.
+
+ elseif
+
+   return-type = 'E'.
+   return-message = 'error occured'.
+
+   ENDIF.
+
+
+
+endif.
+
+  ENDFUNCTION.
