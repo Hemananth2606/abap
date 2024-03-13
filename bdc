@@ -1,0 +1,99 @@
+REPORT zbdc_h
+NO STANDARD PAGE HEADING LINE-SIZE 255.
+
+*include bdcrecx1.
+TYPES : BEGIN OF  ts_mat,
+material TYPE C LENGTH 18,
+industry_sector TYPE C LENGTH 1,
+material_type TYPE C LENGTH 4,
+material_desc TYPE C LENGTH 40,
+unit_measure TYPE C LENGTH 3,
+END OF ts_mat.
+
+DATA: lt_mat TYPE TABLE OF ts_mat,
+      ls_mat TYPE ts_mat,
+      lv_raw_data TYPE truxs_t_text_data.
+DATA:   bdcdata LIKE bdcdata    OCCURS 0 WITH HEADER LINE.
+*       messages of call transaction
+DATA:   messtab LIKE bdcmsgcoll OCCURS 0 WITH HEADER LINE.
+
+START-OF-SELECTION.
+
+PARAMETERS : p_doc TYPE ibipparms-path.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_doc.
+
+CALL FUNCTION 'F4_FILENAME'
+EXPORTING
+  program_name  = syst-cprog
+  dynpro_number = syst-dynnr
+  field_name    = 'P_DOC '
+IMPORTING
+  file_name     = p_doc.
+CALL FUNCTION 'TEXT_CONVERT_XLS_TO_SAP'
+EXPORTING
+  i_field_seperator    = 'X'
+  i_line_header        = 'X'
+  i_tab_raw_data       = lv_raw_data
+  i_filename           = p_doc
+TABLES
+  i_tab_converted_data = lt_mat.
+* EXCEPTIONS
+*   CONVERSION_FAILED          = 1
+*   OTHERS                     = 2
+.
+IF sy-subrc <> 0.
+* Implement suitable error handling here
+ENDIF.
+
+LOOP AT lt_mat INTO ls_mat.
+PERFORM bdc_dynpro      USING 'SAPLMGMM' '0060'.
+PERFORM bdc_field       USING 'BDC_CURSOR'
+      'RMMG1-MATNR'.
+PERFORM bdc_field       USING 'BDC_OKCODE'
+      '=ENTR'.
+PERFORM bdc_field       USING 'RMMG1-MATNR'
+      ls_mat-material.
+PERFORM bdc_field       USING 'RMMG1-MBRSH'
+      ls_mat-industry_sector.
+PERFORM bdc_field       USING 'RMMG1-MTART'
+      ls_mat-material_type.
+PERFORM bdc_dynpro      USING 'SAPLMGMM' '0070'.
+PERFORM bdc_field       USING 'BDC_CURSOR'
+      'MSICHTAUSW-DYTXT(01)'.
+PERFORM bdc_field       USING 'BDC_OKCODE'
+      '=ENTR'.
+PERFORM bdc_field       USING 'MSICHTAUSW-KZSEL(01)'
+      'X'.
+PERFORM bdc_dynpro      USING 'SAPLMGMM' '4004'.
+PERFORM bdc_field       USING 'BDC_OKCODE'
+      '=BU'.
+PERFORM bdc_field       USING 'MAKT-MAKTX'
+      ls_mat-material_desc.
+PERFORM bdc_field       USING 'BDC_CURSOR'
+      'MARA-MEINS'.
+PERFORM bdc_field       USING 'MARA-MEINS'
+      ls_mat-unit_measure.
+CALL TRANSACTION 'MM01' USING bdcdata MODE 'N' UPDATE 'A' MESSAGES INTO  messtab.
+CLEAR : ls_mat.
+REFRESH : bdcdata.
+ENDLOOP.
+FORM bdc_dynpro USING PROGRAM DYNPRO.
+CLEAR bdcdata.
+bdcdata-PROGRAM  = PROGRAM.
+bdcdata-DYNPRO   = DYNPRO.
+bdcdata-dynbegin = 'X'.
+APPEND bdcdata.
+ENDFORM.
+
+*----------------------------------------------------------------------*
+*        Insert field                                                  *
+*----------------------------------------------------------------------*
+FORM bdc_field USING fnam fval.
+*  IF FVAL <> NODATA.
+CLEAR bdcdata.
+bdcdata-fnam = fnam.
+bdcdata-fval = fval.
+APPEND bdcdata.
+*  ENDIF.
+ENDFORM.
