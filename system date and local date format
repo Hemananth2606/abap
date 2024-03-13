@@ -1,0 +1,36 @@
+*&---------------------------------------------------------------------*
+*& Report  ZASDATE
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT ZASDATE.
+
+
+DATA: lv_system_date TYPE sy-datum,     " System date
+      lv_local_date  TYPE dats,         " Local date
+      p_date         TYPE dats.         " Parameter for local date
+
+* Step 1: Get the current system date
+GET TIME.
+lv_system_date = sy-datum.
+
+CALL FUNCTION 'CONVERT_DATE_TO_EXTERNAL'
+  EXPORTING
+    date_internal   = lv_system_date
+  IMPORTING
+    date_external   = lv_local_date
+  EXCEPTIONS
+    date_invalid    = 1
+    OTHERS          = 2.
+
+IF sy-subrc <> 0.
+  WRITE: / 'Error occurred while converting date.'.
+ELSE.
+  p_date = lv_local_date.
+ENDIF.
+
+WRITE: / 'System Date: ', lv_system_date,
+       / 'Local Date: ', p_date.
