@@ -1,0 +1,100 @@
+*&---------------------------------------------------------------------*
+*& Report  ZBAPI_H1
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT ZBAPI_H1.
+TYPES: BEGIN OF ts_bapi,
+       material TYPE c LENGTH 18,
+       ind_sector TYPE c LENGTH 1,
+       matyl_type TYPE c LENGTH 4,
+       matl_group TYPE c LENGTH 9,
+       uom TYPE c LENGTH 3,
+       lang TYPE c LENGTH 1,
+       mat_desc TYPE c LENGTH 40,
+       END OF ts_bapi.
+
+DATA : lt_bapi TYPE TABLE OF ts_bapi,
+       ls_bapi TYPE ts_bapi,
+       ls_bapihead TYPE bapimathead,
+       ls_bapimara TYPE bapi_mara,
+       ls_bapimarax TYPE bapi_marax,
+       lt_matdesc TYPE TABLE OF bapi_makt,
+       ls_matdesc TYPE bapi_makt,
+       rawdata TYPE TRUXS_T_TEXT_DATA,
+       lt_return TYPE TABLE OF bapiret2,
+       ls_return TYPE bapiret2.
+
+
+SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+PARAMETERS: p_file TYPE rlgrap-filename.
+SELECTION-SCREEN END OF BLOCK b1.
+
+START-OF-SELECTION.
+
+AT SELECTION-SCREEN ON VALUE-REQUEST FOR p_file.
+
+  CALL FUNCTION 'F4_FILENAME'
+    EXPORTING
+      program_name  = syst-cprog
+      dynpro_number = syst-dynnr
+      field_name    = 'P_FILE'
+    IMPORTING
+      file_name     = p_file.
+
+          CALL FUNCTION 'TEXT_CONVERT_XLS_TO_SAP'
+            EXPORTING
+             I_LINE_HEADER              = 'X'
+              i_tab_raw_data             = rawdata
+              i_filename                 = p_file
+            TABLES
+              i_tab_converted_data       = lt_bapi.
+
+
+LOOP AT lt_bapi INTO ls_bapi.
+
+ls_bapihead-material = ls_bapi-material.
+ls_bapihead-ind_sector = ls_bapi-ind_sector.
+ls_bapihead-matl_type = ls_bapi-matyl_type.
+
+ls_bapimara-base_uom = ls_bapi-uom.
+ls_bapimara-matl_group = ls_bapi-matl_group.
+
+ls_bapimarax-matl_group = abap_true.
+ls_bapimarax-base_uom = abap_true.
+
+ls_matdesc-langu = ls_bapi-lang.
+ls_matdesc-matl_desc = ls_bapi-mat_desc.
+
+APPEND ls_matdesc TO lt_matdesc.
+
+CALL FUNCTION 'BAPI_MATERIAL_SAVEDATA'
+  EXPORTING
+    headdata                   = ls_bapihead
+   CLIENTDATA                 = ls_bapimara
+   CLIENTDATAX                = ls_bapimarax
+
+ IMPORTING
+   RETURN                     = ls_return
+ TABLES
+   MATERIALDESCRIPTION        = lt_matdesc.
+
+ IF ls_return-type = 'S'.
+
+ CALL FUNCTION 'BAPI_TRANSACTION_COMMIT'
+  EXPORTING
+    WAIT          = 'X'.
+
+ELSEIF ls_return-type = 'E'.
+
+  CALL FUNCTION 'BAPI_TRANSACTION_ROLLBACK'.
+
+ENDIF.
+APPEND ls_return to lt_return.
+CLEAR :  ls_matdesc,ls_bapimara,ls_bapimarax,ls_bapihead,ls_return.
+
+REFRESH : lt_matdesc.
+ENDLOOP.
