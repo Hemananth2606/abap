@@ -1,0 +1,317 @@
+*&---------------------------------------------------------------------*
+*& Report  ZOOPALV
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT zoopalv.
+
+
+
+    SELECTION-SCREEN BEGIN OF BLOCK b1 WITH FRAME TITLE text-001.
+    PARAMETERS doc_no TYPE ekko-ebeln.
+    SELECTION-SCREEN END OF BLOCK b1.
+CLASS cl_vbrk DEFINITION.
+
+  PUBLIC SECTION.
+    TYPES : BEGIN OF ts_ekko,
+           ebeln TYPE	ebeln,
+           bukrs TYPE	bukrs,
+           bstyp TYPE	ebstyp,
+           bsart TYPE	esart,
+           END OF ts_ekko.
+
+    TYPES : BEGIN OF ts_ekpo,
+           ebeln TYPE	ebeln,
+           statu TYPE	astat,
+           aedat TYPE	paedt,
+           txz01 TYPE	txz01,
+           DPAMT TYPE	ME_DPAMNT,
+           END OF ts_ekpo.
+
+
+    TYPES : BEGIN OF ts_final,
+          ebeln TYPE  ebeln,
+          bukrs TYPE  bukrs,
+          bstyp TYPE  ebstyp,
+          bsart TYPE  esart,
+          statu TYPE  astat,
+          aedat TYPE  paedt,
+          txz01 TYPE  txz01,
+          DPAMT TYPE  ME_DPAMNT,
+          END OF ts_final.
+
+
+    DATA : lt_ekko TYPE TABLE OF ts_ekko,
+           ls_ekko TYPE ts_ekko,
+           lt_ekpo TYPE TABLE OF ts_ekpo,
+           ls_ekpo TYPE ts_ekpo,
+           lt_final TYPE TABLE OF ts_final,
+           ls_final TYPE ts_final,
+    tool type ref to cl_salv_functions_list,  "alv default buttons enables.
+    column type ref to cl_salv_columns,  "to enable column width optimize.
+    columns type ref to cl_salv_column_table, "to change the column header(name).
+    zebra type ref to cl_salv_display_settings,  " to enable zebra pattern.
+    lo_grid type ref to cl_salv_form_layout_grid, "to set header text in top of list(title).
+    lo_layout type ref to cl_salv_form_layout_logo, "to set header text in top of list(title).
+    lo_content type ref to cl_salv_form_element, "to set header text in top of list(title).
+    lv_title type string,
+    lv_row type string,
+    table_desc type ref to cl_abap_tabledescr, "to set header text in top of list(title).
+    desc type ref to cl_abap_structdescr, "to set header text in top of list(title).
+    ls_table type abap_compdescr, "to set header text in top of list(title).
+    lo_total type ref to cl_salv_aggregations," to display total.
+    lo_stotal type ref to cl_salv_sorts, " to display sub total.
+    lo_st_table type ref to cl_salv_sort. " to display sub total.
+
+
+    METHODS : displaydata.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+CLASS cl_vbrk IMPLEMENTATION.
+
+  METHOD displaydata.
+
+
+    IF doc_no IS INITIAL.
+
+      MESSAGE 'please enter the value'
+       TYPE : 'E'.
+
+    ELSE.
+
+      SELECT ebeln
+        bukrs
+        bstyp
+        bsart
+        FROM ekko
+        INTO TABLE lt_ekko
+        WHERE ebeln = doc_no.
+
+      IF sy-subrc IS INITIAL.
+
+        SELECT ebeln
+        statu
+        aedat
+        txz01
+        DPAMT
+        FROM ekpo
+        INTO TABLE lt_ekpo
+        FOR ALL ENTRIES IN lt_ekko
+        WHERE ebeln = lt_ekko-ebeln.
+
+      ENDIF.
+    ENDIF.
+
+    LOOP AT lt_ekpo INTO ls_ekpo.
+      ls_final-statu = ls_ekpo-statu.
+      ls_final-aedat = ls_ekpo-aedat.
+      ls_final-txz01 = ls_ekpo-txz01.
+      ls_final-dpamt = ls_ekpo-dpamt.
+      READ TABLE lt_ekko INTO ls_ekko WITH KEY ebeln = ls_ekpo-ebeln.
+      ls_final-ebeln = ls_ekko-ebeln.
+      ls_final-bukrs = ls_ekko-bukrs.
+      ls_final-bstyp = ls_ekko-bstyp.
+      ls_final-bsart = ls_ekko-bsart.
+
+      APPEND ls_final TO lt_final.
+      CLEAR : ls_ekpo,ls_ekko,ls_final.
+
+    ENDLOOP.
+
+    TRY.
+
+        cl_salv_table=>factory(
+*      EXPORTING
+*        list_display   = IF_SALV_C_BOOL_SAP=>FALSE    " ALV Displayed in List Mode
+*        r_container    =     " Abstract Container for GUI Controls
+*        container_name =
+          IMPORTING
+            r_salv_table   =  DATA(lo_alv)  "lo_alv " Basis Class Simple ALV Tables
+          CHANGING
+            t_table        = lt_final
+        ).
+      CATCH cx_salv_msg INTO DATA(lv_msg).
+
+    ENDTRY.
+
+    tool = lo_alv->get_functions( ). "alv default buttons enables.
+
+    tool->set_all( abap_true ). "alv default buttons enables.
+
+    column = lo_alv->get_columns( ). "to enable column width optimize.
+
+    column->set_optimize( 'X' ).  "to enable column width optimize.
+
+    zebra = lo_alv->get_display_settings( ). " to enable zebra pattern.
+
+    zebra->set_striped_pattern( cl_salv_display_settings=>true ). " to enable zebra pattern.
+
+    CLEAR: lv_row,lv_title.
+
+    DESCRIBE TABLE lt_final LINES lv_row.
+
+    CONCATENATE text-002 lv_row INTO lv_title SEPARATED BY ' '.
+
+    CREATE OBJECT lo_grid. "to set header text in top of list(title).
+
+    CREATE OBJECT lo_layout."to set header text in top of list(title).
+
+    lo_layout->set_right_logo( 'ENJOYSAP_LOGO' ).
+
+
+    lo_grid->create_label(
+      EXPORTING
+        row         =   1
+        column      =   1
+        text        =  lv_title
+        tooltip     =  lv_title ).
+
+    lo_grid->create_label(
+      EXPORTING
+        row         =  2   " Natural Number
+        column      =  1  " Natural Number
+*        rowspan     =
+*        colspan     =
+        text        = 'Date :'
+        tooltip     = 'Date :'
+*        label_size = 'L'
+*        r_label_for =     " Text
+*      RECEIVING
+*        r_value     =     " Label
+    ).
+
+    lo_grid->create_text(
+      EXPORTING
+        row     =    2 " Natural Number
+        column  =    2 " Natural Number
+*    rowspan =
+*    colspan =
+        text    = sy-datum
+        tooltip = sy-datum
+*  RECEIVING
+*    r_value =     " Text
+    ).
+
+    lo_layout->set_left_content( lo_grid ).
+
+    lo_content = lo_layout.
+
+    lo_alv->set_top_of_list( lo_content ).
+
+    table_desc ?= cl_abap_typedescr=>describe_by_data( lt_final ).
+
+    desc ?= table_desc->get_table_line_type( ).
+
+    DATA: large TYPE scrtext_l,
+          medium TYPE scrtext_m,
+          short TYPE scrtext_s.
+
+    LOOP AT desc->components INTO ls_table FROM 1.
+
+      IF ls_table-name = text-006.
+
+        CLEAR : large,medium,short.
+
+        large = text-003.
+        medium = text-004.
+        short = text-005.
+
+        TRY .
+
+            columns ?= column->get_column( ls_table-name ).
+            columns->set_long_text( large ).
+            columns->set_medium_text( medium ).
+            columns->set_short_text( short ).
+
+          CATCH cx_salv_not_found.
+
+
+
+        ENDTRY.
+
+      ELSEIF ls_table-name = text-008.
+
+        CLEAR : large,medium,short.
+
+        large = text-009.
+        medium = text-010.
+        short = text-011.
+
+        TRY .
+
+            columns ?= column->get_column( ls_table-name ).
+            columns->set_long_text( large ).
+            columns->set_medium_text( medium ).
+            columns->set_short_text( short ).
+
+          CATCH cx_salv_not_found.
+
+
+
+        ENDTRY.
+      ENDIF.
+    ENDLOOP.
+
+    lo_total = lo_alv->get_aggregations( ).
+
+    TRY .
+
+        CALL METHOD lo_total->add_aggregation
+          EXPORTING
+            columnname  = 'DPAMT'   " ALV Control: Field Name of Internal Table Field
+            aggregation = if_salv_c_aggregation=>total    " Aggregation
+*  RECEIVING
+*           value       =     " ALV: Aggregations
+          .
+      CATCH cx_salv_data_error.    "
+      CATCH cx_salv_not_found.    "
+      CATCH cx_salv_existing.    "
+
+
+    ENDTRY.
+
+    CALL METHOD lo_alv->get_sorts
+      RECEIVING
+        value = lo_stotal.    " ALV Sort
+
+    TRY .
+
+        CALL METHOD lo_stotal->add_sort
+          EXPORTING
+            columnname = 'EBELN'   " ALV Control: Field Name of Internal Table Field
+*           position   =
+*           sequence   =     " Sort Sequence
+*           subtotal   = IF_SALV_C_BOOL_SAP=>FALSE    " Boolean Variable (X=True, Space=False)
+*           group      =     " Control Break
+*           obligatory = IF_SALV_C_BOOL_SAP=>FALSE    " Boolean Variable (X=True, Space=False)
+          RECEIVING
+            value      = lo_st_table.    " ALV Sort Settings
+
+        CALL METHOD lo_st_table->set_subtotal
+          EXPORTING
+            value = if_salv_c_bool_sap=>true.    " Boolean Variable (X=True, Space=False)
+
+      CATCH cx_salv_not_found.    "
+      CATCH cx_salv_existing.    "
+      CATCH cx_salv_data_error.    "
+
+
+    ENDTRY.
+
+    lo_alv->display( ).
+
+  ENDMETHOD.
+
+ENDCLASS.
+
+START-OF-SELECTION.
+
+  DATA : obj TYPE REF TO cl_vbrk.
+
+  CREATE OBJECT obj.
+  obj->displaydata( ).
