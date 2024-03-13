@@ -1,0 +1,67 @@
+*&---------------------------------------------------------------------*
+*& Report  ZPROJECT_DISPLAY
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT ZPROJECT_DISPLAY.
+DATA : lt_zpj type TABLE OF zpj_details,
+       ls_zpj TYPE zpj_details,
+       lt_zwpj TYPE TABLE OF zwpj_details,
+       ls_zwpj TYPE zwpj_details,
+       lt_final type TABLE OF zjs_details,
+       ls_final TYPE zjs_details.
+DATA : ls_layout TYPE slis_layout_alv.
+PARAMETERS : p_zwpj TYPE zemploy_id.
+START-OF-SELECTION.
+IF p_zwpj  IS NOT INITIAL.
+  SELECT * from zwpj_details
+  into table lt_zwpj
+  where EMPLOYEEID = p_zwpj.
+ELSE.
+  SELECT * from zwpj_details
+  into table lt_zwpj.
+ENDIF.
+
+  IF lt_zwpj[] is not INITIAL.
+    select * from zpj_details
+      into TABLE lt_zpj
+      FOR ALL ENTRIES IN lt_zwpj
+      where PROJECTID = lt_zwpj-PROJECTID.
+      else.
+        select * from zwpj_details
+          INTO TABLE lt_zwpj.
+      endif.
+*      if lt_zwpj is INITIAL.
+*        select * from zpj_details
+*          into TABLE lt_final.
+*endif.
+
+  WRITE: / 'EMPLOYEEID',
+       50 'PROJECT ID',
+       70 'TASK DESK',
+       90 'PROJECT DURATION'.
+  loop at lt_zwpj into ls_zwpj.
+    ls_final-EMPLOYEEID = ls_zwpj-EMPLOYEEID.
+    ls_final-PROJECTID = ls_zwpj-PROJECTID.
+    ls_final-TASKDESC = ls_zwpj-TASKDESC.
+    READ TABLE lt_zpj INTO ls_zpj with key PROJECTID = ls_zwpj-PROJECTID.
+    ls_final-PROJECTDURATION = ls_zpj-PROJECTDURATION.
+    append ls_final to lt_final.
+    endloop.
+  loop at lt_final INTO ls_final.
+    WRITE : / ls_final-EMPLOYEEID,
+            50  ls_final-PROJECTID,
+            70  ls_final-TASKDESC,
+            90  ls_final-PROJECTDURATION.
+    ENDLOOP.
+    ls_layout-colwidth_optimize = 'X'.
+    ls_layout-zebra = 'X'.
+    CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+     EXPORTING
+       I_STRUCTURE_NAME                  = 'zjs_details'
+       IS_LAYOUT                         = ls_layout
+      TABLES
+        T_OUTTAB                          = lt_final.
