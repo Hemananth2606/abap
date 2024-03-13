@@ -1,0 +1,136 @@
+*&---------------------------------------------------------------------*
+*& Report  ZINTERACTIVE_H
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT ZINTERACTIVE_H.
+
+TYPES : BEGIN OF TS_EKKO,
+        EBELN TYPE EKKO-EBELN,
+        BUKRS TYPE EKKO-BUKRS,
+        BSTYP TYPE EKKO-BSTYP,
+        BSART	 TYPE EKKO-BSART,
+        END OF TS_EKKO.
+TYPES : BEGIN OF TS_EKES,
+        EBELN TYPE EKES-EBELN,
+        EBELP TYPE EKES-EBELP,
+        ETENS TYPE EKES-ETENS,
+        END OF TS_EKES.
+
+
+ DATA : LT_EKKO TYPE TABLE OF TS_EKKO,
+        LS_EKKO TYPE TS_EKKO,
+        LT_EKES TYPE TABLE OF TS_EKES,
+        LS_EKES TYPE TS_EKES,
+        LT_FCAT TYPE SLIS_T_FIELDCAT_ALV,
+        LS_FCAT TYPE SLIS_FIELDCAT_ALV,
+        LT_FCAT1 TYPE SLIS_T_FIELDCAT_ALV,
+        LS_FCAT1 TYPE SLIS_FIELDCAT_ALV,
+
+        LS_LAYOUT TYPE SLIS_LAYOUT_ALV.
+
+ SELECTION-SCREEN begin of block b1 WITH FRAME TITLE text-001.
+ PARAMETERS : P_EBLEN TYPE EKKO-EBELN.
+ SELECTION-SCREEN end of BLOCK b1.
+ select ebeln
+   bukrs
+   bstyp
+   bsart
+ from ekko
+ into table lt_ekko.
+* where EBELN = p_ebeln.
+
+   ls_fcat-COL_POS = '1'.
+   ls_fcat-FIELDNAME = 'EBELN'.
+   ls_fcat-TABNAME = 'GT_EKKO'.
+   ls_fcat-SELTEXT_M  = 'PURCHASE DOCUMENT'.
+   APPEND ls_fcat to lt_fcat.
+   CLEAR ls_fcat.
+
+   ls_fcat-COL_POS = '2'.
+   ls_fcat-FIELDNAME = 'BUKRS'.
+   ls_fcat-TABNAME = 'GT_EKKO'.
+   ls_fcat-SELTEXT_M  = 'COMPANY CODE'.
+   APPEND ls_fcat to lt_fcat.
+   CLEAR ls_fcat.
+
+   ls_fcat-COL_POS = '3'.
+   ls_fcat-FIELDNAME = 'BSTYP'.
+   ls_fcat-TABNAME = 'GT_EKKO'.
+   ls_fcat-SELTEXT_M  = 'PURCHASING DOCUMENT CATEGORY'.
+   APPEND ls_fcat to lt_fcat.
+   CLEAR ls_fcat.
+
+   ls_fcat-COL_POS = '4'.
+   ls_fcat-FIELDNAME = 'BSART'.
+   ls_fcat-TABNAME = 'GT_EKKO'.
+   ls_fcat-SELTEXT_M  = 'DOCUMENT TYPE'.
+   APPEND ls_fcat to lt_fcat.
+   CLEAR ls_fcat.
+
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+
+   I_CALLBACK_USER_COMMAND           = 'USER_COMMAND'
+     I_CALLBACK_PROGRAM                = sy-repid
+   IS_LAYOUT                         = LS_LAYOUT
+   IT_FIELDCAT                       = LT_FCAT
+
+  TABLES
+    T_OUTTAB                          = LT_EKKO
+ EXCEPTIONS
+   PROGRAM_ERROR                     = 1
+   OTHERS                            = 2
+          .
+IF SY-SUBRC <> 0.
+* Implement suitable error handling here
+ENDIF.
+FORM USER_COMMAND USING UCOMM LIKE SY-UCOMM
+   SEL TYPE SLIS_SELFIELD.
+ IF UCOMM EQ '&IC1'.
+    CLEAR LS_EKKO.
+
+READ TABLE LT_EKKO INTO LS_EKKO INDEX SEL-TABINDEX.
+
+select EBELN
+       EBELP
+       ETENS
+from ekes
+into table lt_ekes.
+*where ebeln = ls_ekko-EBELN.
+   ls_fcat1-COL_POS = '1'.
+   ls_fcat1-FIELDNAME = 'EBELN'.
+   ls_fcat1-TABNAME = 'GT_EKES'.
+   ls_fcat1-SELTEXT_M  = 'DOCUMENT TYPE'.
+   APPEND ls_fcat1 to lt_fcat1.
+   CLEAR ls_fcat1.
+   ls_fcat1-COL_POS = '2'.
+   ls_fcat1-FIELDNAME = 'EBELP'.
+   ls_fcat1-TABNAME = 'GT_EKES'.
+   ls_fcat1-SELTEXT_M  = 'DOCUMENT TYPE'.
+   APPEND ls_fcat1 to lt_fcat1.
+   CLEAR ls_fcat1.
+   ls_fcat1-COL_POS = '3'.
+   ls_fcat1-FIELDNAME = 'ETENS'.
+   ls_fcat1-TABNAME = 'GT_EKES'.
+   ls_fcat1-SELTEXT_M  = 'DOCUMENT TYPE'.
+   APPEND ls_fcat1 to lt_fcat1.
+   CLEAR ls_fcat1.
+CALL FUNCTION 'REUSE_ALV_GRID_DISPLAY'
+ EXPORTING
+    I_CALLBACK_PROGRAM                = sy-repid
+*  I_CALLBACK_USER_COMMAND     = 'UCOMM_MARA'
+  IT_FIELDCAT                       = lt_fcat1
+TABLES
+  T_OUTTAB                          = lt_ekes.
+*EXCEPTIONS
+*  PROGRAM_ERROR                     = 1
+*  OTHERS                            = 2
+*  .
+     REFRESH : lt_fcat1.
+ENDIF.
+
+ENDFORM.
