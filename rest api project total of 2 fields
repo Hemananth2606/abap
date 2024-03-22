@@ -1,0 +1,155 @@
+METHOD if_rest_resource~get.
+*CALL METHOD SUPER->IF_REST_RESOURCE~GET
+*    .
+    TYPES: BEGIN OF ts_zsordoutcol,
+             vbeln       TYPE vbeln,
+             kunnr       TYPE kunnr,
+             audat       TYPE audat,
+             matnr       TYPE matnr,
+             penord(10)  TYPE p DECIMALS 2,
+             penordv(10) TYPE p DECIMALS 2,
+           END OF ts_zsordoutcol,
+
+           BEGIN OF ts_kna1,
+             kunnr TYPE kunnr,
+             name1 TYPE name1_gp,
+           END OF ts_kna1,
+
+           BEGIN OF ts_makt,
+             matnr TYPE matnr,
+             maktx TYPE  maktx,
+           END OF ts_makt,
+
+           BEGIN OF ts_sum,
+             kunnr       TYPE kunnr,
+             penord(10)  TYPE p DECIMALS 2,
+             penordv(10) TYPE p DECIMALS 2,
+           END OF ts_sum,
+
+
+           BEGIN OF ts_final,
+             vbeln       TYPE vbeln,
+             kunnr       TYPE kunnr,
+             audat       TYPE audat,
+             matnr       TYPE matnr,
+             penord(10)  TYPE p DECIMALS 2,
+             penordv(10) TYPE p DECIMALS 2,
+             name1       TYPE name1_gp,
+             maktx       TYPE  maktx,
+           END OF ts_final.
+
+    DATA: lt_zsordoutcol TYPE TABLE OF ts_zsordoutcol,
+          ls_zsordoutcol TYPE ts_zsordoutcol,
+          lt_kna1        TYPE TABLE OF ts_kna1,
+          ls_kna1        TYPE ts_kna1,
+          lt_makt        TYPE TABLE OF ts_makt,
+          ls_makt        TYPE ts_makt,
+          lt_final       TYPE TABLE OF ts_final,
+          ls_final       TYPE ts_final,
+          lt_sum         TYPE TABLE OF ts_sum,
+          ls_sum         TYPE ts_sum,
+          so_kunnr       TYPE kunnr.
+
+    so_kunnr = mo_request->get_uri_query_parameter( 'KUNNR' ).
+
+CALL FUNCTION 'CONVERSION_EXIT_ALPHA_INPUT'
+  EXPORTING
+    input         = so_kunnr
+ IMPORTING
+   OUTPUT        = so_kunnr.
+
+    IF so_kunnr IS NOT INITIAL.
+      SELECT  vbeln kunnr audat matnr penord penordv
+        FROM zsordoutcol
+        INTO TABLE lt_zsordoutcol
+        WHERE kunnr EQ so_kunnr
+        AND  penord NE 0
+        ORDER BY vbeln.
+
+      SELECT kunnr
+             sum( penord )
+             sum( penordv )
+        FROM zsordoutcol INTO TABLE lt_sum WHERE kunnr eq so_kunnr
+         AND  penord NE 0
+        GROUP BY kunnr.
+
+    ENDIF.
+
+    IF lt_zsordoutcol IS NOT INITIAL.
+      SELECT kunnr
+             name1
+        FROM kna1
+        INTO TABLE lt_kna1
+        FOR ALL ENTRIES IN lt_zsordoutcol
+        WHERE kunnr = lt_zsordoutcol-kunnr.
+      SORT lt_kna1[] BY kunnr.
+
+
+      SELECT matnr
+             maktx
+        FROM makt
+        INTO TABLE lt_makt
+        FOR ALL ENTRIES IN lt_zsordoutcol
+        WHERE matnr = lt_zsordoutcol-matnr.
+      SORT lt_makt[] BY matnr.
+
+    ENDIF.
+    LOOP AT lt_zsordoutcol INTO ls_zsordoutcol.
+      ls_final-vbeln = ls_zsordoutcol-vbeln.
+      ls_final-kunnr = ls_zsordoutcol-kunnr.
+      ls_final-audat = ls_zsordoutcol-audat.
+      ls_final-matnr = ls_zsordoutcol-matnr.
+      ls_final-penord = ls_zsordoutcol-penord.
+      ls_final-penordv = ls_zsordoutcol-penordv.
+
+      READ TABLE lt_kna1 INTO ls_kna1 WITH KEY kunnr = ls_zsordoutcol-kunnr BINARY SEARCH .
+      IF sy-subrc IS INITIAL.
+        ls_final-name1 = ls_kna1-name1.
+      ENDIF.
+
+      READ TABLE lt_makt INTO ls_makt WITH KEY matnr = ls_zsordoutcol-matnr BINARY SEARCH .
+      IF sy-subrc IS INITIAL.
+        ls_final-maktx = ls_makt-maktx.
+      ENDIF.
+
+      APPEND ls_final TO lt_final.
+      CLEAR: ls_final, ls_zsordoutcol, ls_kna1, ls_makt.
+
+    ENDLOOP.
+
+  LOOP AT lt_sum INTO ls_sum.
+    ls_final-kunnr = ls_sum-kunnr.
+    ls_final-penord = ls_sum-penord.
+    ls_final-penordv = ls_sum-penordv.
+   APPEND ls_final TO lt_final.
+   clear: ls_final, ls_sum.
+   ENDLOOP.
+
+
+ IF lt_final IS NOT INITIAL.
+
+      /ui2/cl_json=>serialize(
+        EXPORTING
+          data             =   lt_final               " Data to serialize
+        RECEIVING
+          r_json           =  DATA(json)                " JSON string
+      ).
+
+      mo_response->create_entity( )->set_string_data( iv_data = json ).
+
+    ELSE.
+
+      /ui2/cl_json=>serialize(
+        EXPORTING
+          data             =   TEXT-001               " Data to serialize
+        RECEIVING
+          r_json           =  DATA(lv_error)                " JSON string
+      ).
+
+      mo_response->create_entity( )->set_string_data( iv_data = lv_error ).
+
+    ENDIF.
+
+
+
+  ENDMETHOD.
